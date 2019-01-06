@@ -1,25 +1,32 @@
-#!/usr/bin/env python3
+#!/usr/bin/env pypy3
+from __future__ import print_function
 import chess
-from engine import AlphaBetaSearch, eval_func
+from engine import AlphaBetaSearch
+import sys
+import time
+
+def eprint(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
 
 
 def main():
-    board = chess.Board()
+    ap = AlphaBetaSearch()
 
     forced = False
     our_time, opp_time = 1000, 1000 # time in centi-seconds
     show_thinking = True
-    depth = 2
 
     # print name of chess engine
     print('Chesser')
 
     stack = []
+    board = chess.Board()
     while True:
         if stack:
             smove = stack.pop()
         else:
             smove = input()
+        eprint('[C] {}'.format(smove))
 
         if smove == 'quit':
             break
@@ -34,15 +41,22 @@ def main():
             stack.append('position fen ' + chess.STARTING_FEN)
 
         elif smove.startswith('position'):
+            board = chess.Board()
             params = smove.split(' ', 2)
             if params[1] == 'fen':
                 fen = params[2]
                 board = chess.Board(fen)
+            if params[1] == 'startpos':
+                if len(params) > 2:
+                    k = params[2].split(' ')
+                    if k[0] == 'moves':
+                        for move in k[1:]:
+                            board.push(chess.Move.from_uci(move))
 
         elif smove.startswith('go'):
             #  default options
-            depth = 1000
             movetime = -1
+            depth = 7
 
             # parse parameters
             params = smove.split(' ')
@@ -54,12 +68,29 @@ def main():
                 if param == 'depth':
                     i += 1
                     depth = int(params[i])
-            ap = AlphaBetaSearch(board.turn)
-            ap.minimax(board, depth)
+                if param == 'movetime':
+                    i += 1
+                    movetime = int(params[i])
+                i+=1
 
+            eprint("Starting AlphaBetaSearch with depth {}".format(depth))
 
+            s = time.time()
 
+            val, move = ap.minimax(board, depth, board.turn)
 
+            e = time.time()
+            usedtime = (e-s)*1000
+
+            print('info depth {} score {} time {} nodes {}'.format(depth, val, int(usedtime), ap.nodes))
+            eprint('info depth {} score {} time {} nodes {}'.format(depth, val, int(usedtime), ap.nodes))
+            print('bestmove ' + move.uci())
+
+        elif smove.startswith('time'):
+            our_time = int(smove.split()[1])
+
+        elif smove.startswith('otim'):
+            opp_time = int(smove.split()[1])
 
 if __name__ == '__main__':
     main()
