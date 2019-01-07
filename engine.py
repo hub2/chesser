@@ -4,12 +4,76 @@ import chess
 import chess.polyglot
 import time
 
-piece_types = [chess.PAWN, chess.KNIGHT, chess.BISHOP, chess.ROOK, chess.QUEEN, chess.KING]
+piece_types_no_king = [chess.PAWN, chess.KNIGHT, chess.BISHOP, chess.ROOK, chess.QUEEN]
+piece_types = piece_types_no_king + [chess.KING]
+
+pawns = [ 0,  0,  0,  0,  0,  0,  0,  0,
+        50, 50, 50, 50, 50, 50, 50, 50,
+        10, 10, 20, 30, 30, 20, 10, 10,
+         5,  5, 10, 25, 25, 10,  5,  5,
+         0,  0,  0, 20, 20,  0,  0,  0,
+         5, -5,-10,  0,  0,-10, -5,  5,
+         5, 10, 10,-20,-20, 10, 10,  5,
+         0,  0,  0,  0,  0,  0,  0,  0]
+
+knights = [-50,-40,-30,-30,-30,-30,-40,-50,
+            -40,-20,  0,  0,  0,  0,-20,-40,
+            -30,  0, 10, 15, 15, 10,  0,-30,
+            -30,  5, 15, 20, 20, 15,  5,-30,
+            -30,  0, 15, 20, 20, 15,  0,-30,
+            -30,  5, 10, 15, 15, 10,  5,-30,
+            -40,-20,  0,  5,  5,  0,-20,-40,
+            -50,-40,-30,-30,-30,-30,-40,-50,]
+
+bishops = [-20,-10,-10,-10,-10,-10,-10,-20,
+            -10,  0,  0,  0,  0,  0,  0,-10,
+            -10,  0,  5, 10, 10,  5,  0,-10,
+            -10,  5,  5, 10, 10,  5,  5,-10,
+            -10,  0, 10, 10, 10, 10,  0,-10,
+            -10, 10, 10, 10, 10, 10, 10,-10,
+            -10,  5,  0,  0,  0,  0,  5,-10,
+            -20,-10,-10,-10,-10,-10,-10,-20,]
+rooks = [  0,  0,  0,  0,  0,  0,  0,  0,
+          5, 10, 10, 10, 10, 10, 10,  5,
+         -5,  0,  0,  0,  0,  0,  0, -5,
+         -5,  0,  0,  0,  0,  0,  0, -5,
+         -5,  0,  0,  0,  0,  0,  0, -5,
+         -5,  0,  0,  0,  0,  0,  0, -5,
+         -5,  0,  0,  0,  0,  0,  0, -5,
+          0,  0,  0,  5,  5,  0,  0,  0]
+
+queen = [-20,-10,-10, -5, -5,-10,-10,-20,
+        -10,  0,  0,  0,  0,  0,  0,-10,
+        -10,  0,  5,  5,  5,  5,  0,-10,
+         -5,  0,  5,  5,  5,  5,  0, -5,
+          0,  0,  5,  5,  5,  5,  0, -5,
+        -10,  5,  5,  5,  5,  5,  0,-10,
+        -10,  0,  5,  0,  0,  0,  0,-10,
+        -20,-10,-10, -5, -5,-10,-10,-20]
+
+king_middle_game = [-30,-40,-40,-50,-50,-40,-40,-30,
+                    -30,-40,-40,-50,-50,-40,-40,-30,
+                    -30,-40,-40,-50,-50,-40,-40,-30,
+                    -30,-40,-40,-50,-50,-40,-40,-30,
+                    -20,-30,-30,-40,-40,-30,-30,-20,
+                    -10,-20,-20,-20,-20,-20,-20,-10,
+                     20, 20,  0,  0,  0,  0, 20, 20,
+                     20, 30, 10,  0,  0, 10, 30, 20]
+
+king_end_game = [-50,-40,-30,-20,-20,-30,-40,-50,
+                -30,-20,-10,  0,  0,-10,-20,-30,
+                -30,-10, 20, 30, 30, 20,-10,-30,
+                -30,-10, 30, 40, 40, 30,-10,-30,
+                -30,-10, 30, 40, 40, 30,-10,-30,
+                -30,-10, 20, 30, 30, 20,-10,-30,
+                -30,-30,  0,  0,  0,  0,-30,-30,
+                -50,-30,-30,-30,-30,-30,-30,-50]
+
 piece_val = {chess.PAWN:100,
-             chess.KNIGHT: 300,
-             chess.BISHOP: 310,
+             chess.KNIGHT: 320,
+             chess.BISHOP: 330,
              chess.ROOK: 500,
-             chess.QUEEN: 950,
+             chess.QUEEN: 900,
              chess.KING: 0}
 
 attack_square_val = {chess.PAWN:1,
@@ -54,7 +118,15 @@ class AlphaBetaSearch:
         self.nodes = 0
         self.pieces = board.pieces
         self.attacks = board.attacks
+        self.is_capture = board.is_capture
+
+        if len(board.pieces(chess.QUEEN, chess.BLACK)) + len(board.pieces(chess.QUEEN, chess.WHITE)) == 0:
+            self.is_endgame = True
+        else:
+            self.is_endgame = False
+
         val, move = self.alpha_beta_search(board, depth, MINVALUE, MAXVALUE, is_white)
+
         return val/100.0, move
 
     def alpha_beta_search(self, board, depth, alpha, beta, maximizing_player):
@@ -71,7 +143,7 @@ class AlphaBetaSearch:
 
             return self.eval_func(board), None
 
-        legal_moves = sorted(legal_moves, key=board.is_capture, reverse=True)
+        legal_moves = sorted(legal_moves, key=self.is_capture, reverse=True)
         if depth < 2:
             legal_moves = legal_moves[:5]
         best_move = None
@@ -115,7 +187,7 @@ class AlphaBetaSearch:
         v = 0
         mobility = 0
         #eval_moves = 0
-        for piece_type in piece_types:
+        for piece_type in piece_types_no_king:
             pieces_set = self.pieces(piece_type, chess.WHITE)
             pieces_count = 0
             for square in pieces_set:
@@ -125,18 +197,42 @@ class AlphaBetaSearch:
             v += pieces_count * piece_val[piece_type]
             #    v += piece_val[piece_type]
 
-        for piece_type in piece_types:
+        for piece_type in piece_types_no_king:
             pieces_set = self.pieces(piece_type, chess.BLACK)
             pieces_count = 0
             for square in pieces_set:
                 mobility -= self.attacks(square).__len__()
                 pieces_count += 1
-
             v -= pieces_count * piece_val[piece_type]
 
             #    v -= piece_val[piece_type]
-
+        # MOBILITY
         v += mobility
+
+        white_king = board.king(chess.WHITE)
+        file = white_king & 7
+        rank = white_king >> 3
+        file ^= (file - 4) >> 8
+        rank ^= (rank - 4) >> 8
+        manhattan_dist_w = 2 << ((file + rank) & 7)
+
+
+        black_king = board.king(chess.BLACK)
+
+        file = black_king & 7
+        rank = black_king >> 3
+        file ^= (file - 4) >> 8
+        rank ^= (rank - 4) >> 8
+        manhattan_dist_b = 2 << ((file + rank) & 7)
+
+        # KING
+        if not self.is_endgame:
+            v += manhattan_dist_w
+            v -= manhattan_dist_b
+        else:
+            v -= manhattan_dist_w
+            v += manhattan_dist_b
+
 
         # bak = board.turn
         #

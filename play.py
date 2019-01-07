@@ -61,7 +61,7 @@ def main():
 
             #  default options
             movetime = -1
-            depth = 7
+            depth = 6
 
             # parse parameters
             params = smove.split(' ')
