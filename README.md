@@ -7,15 +7,16 @@ Simple alpha beta search python engine
 * 7ply search
 
 #### TODO
-* Time control managment
 * Transition tables
-* change minimax to negamax
+* Change minimax to negascout
+* Time control managment
 
 ## Evaluation
 * Mobility
 * Material
+* Piece Square Tables
 
 #### TODO
-* Piece-square tables
+* Change evaluation to relative
 * Lazy evaluation for pruning
 * Improve castling
