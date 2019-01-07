@@ -20,3 +20,4 @@ Simple alpha beta search python engine
 * Change evaluation to relative
 * Lazy evaluation for pruning
 * Improve castling
+* Bad pawns (doubled, tripled)
