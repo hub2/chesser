@@ -102,24 +102,14 @@ attack_square_val = {chess.PAWN:1,
 MINVALUE = -1000000
 MAXVALUE = 1000000
 
-class LRUCache:
+class TTable:
     cache = {}
     def put(self, board, val):
-        bb = (board.pawns) | \
-             (board.knights << 64) | \
-             (board.bishops << 128) | \
-             (board.rooks << 192) | \
-             (board.queens << 256) | \
-             (board.kings << 318)
-        self.cache[bb] = val
+        h = chess.polyglot.zobrist_hash(board)
+
 
     def get(self, board):
-        bb = (board.pawns) | \
-             (board.knights << 64) | \
-             (board.bishops << 128) | \
-             (board.rooks << 192) | \
-             (board.queens << 256) | \
-             (board.kings << 318)
+        h = chess.polyglot.zobrist_hash(board)
         return self.cache.get(bb, None)
 
 
@@ -128,7 +118,7 @@ class LRUCache:
 class AlphaBetaSearch:
     nodes = 0
     def __init__(self):
-        self.cache = LRUCache()
+        self.transposition_table = TTable()
 
     def minimax(self, board, max_depth, is_white):
         self.max_depth = max_depth
@@ -142,15 +132,20 @@ class AlphaBetaSearch:
         else:
             self.is_endgame = False
 
-        val, move = self.alpha_beta_search(board, 0, MINVALUE, MAXVALUE, is_white)
+        val, move, tpv = self.alpha_beta_search(board, 0, MINVALUE, MAXVALUE, is_white)
+        print(" ".join([x.uci() for x in tpv[::-1]]))
+
 
         return val/100.0, move
 
     def alpha_beta_search(self, board, depth, alpha, beta, maximizing_player):
+        color = [-1, 1][board.turn]
+
         legal_moves = list(board.legal_moves)
         self.nodes += 1
+
         if depth >= self.max_depth or len(legal_moves) == 0:
-            return self.eval_func(board), None
+            return self.eval_func(board, color), None, []
         if board.is_game_over():
             if board.is_checkmate():
                 if board.result == '1-0':
@@ -158,47 +153,69 @@ class AlphaBetaSearch:
                 if board.result == '0-1':
                     return MINVALUE, None
 
-            return self.eval_func(board), None
+            return self.eval_func(board, color), None, []
 
         legal_moves = sorted(legal_moves, key=self.is_capture, reverse=True)
-        if depth > 6:
-            legal_moves = legal_moves[:2]
-        if depth > 5:
-            legal_moves = legal_moves[:5]
+        #if depth > 6:
+        #    legal_moves = legal_moves[:2]
+        #if depth > 5:
+        #    legal_moves = legal_moves[:5]
+
         best_move = None
+
+        v_max = MINVALUE
+        for move in legal_moves:
+            board.push(move)
+            v, _, ttpv = self.alpha_beta_search(board, depth+1, -beta, -alpha, not maximizing_player)
+            v = -v
+            v = max(alpha, v)
+            alpha = max(alpha, v)
+
+            if v > v_max:
+                v_max = v
+                best_move = move
+                tpv = ttpv + [best_move]
+
+            board.pop()
+            if alpha >= beta:
+                break
+
+        return v_max, best_move, tpv
+
+
         # opponent's node
-        if not maximizing_player: #not board.turn == side_to_move:
-            v_min = MAXVALUE
-            for move in legal_moves:
-                board.push(move)
-                temp_min, _ = self.alpha_beta_search(board, depth+1, alpha, beta, not maximizing_player)
+        #if not maximizing_player: #not board.turn == side_to_move:
+        #    v_min = MAXVALUE
+        #    for move in legal_moves:
+        #        board.push(move)
+        #        temp_min, _ = self.alpha_beta_search(board, depth+1, alpha, beta, not maximizing_player)
 
-                if temp_min < v_min:
-                    v_min = temp_min
-                    best_move = move
+        #        if temp_min < v_min:
+        #            v_min = temp_min
+        #            best_move = move
 
-                beta = min(beta, v_min)
-                board.pop()
-                if alpha >= beta:
-                    break
-            return beta, best_move
-        else:
-            v_max = MINVALUE
-            for move in legal_moves:
-                board.push(move)
-                temp_max, _ = self.alpha_beta_search(board, depth+1, alpha, beta, not maximizing_player)
+        #        beta = min(beta, v_min)
+        #        board.pop()
+        #        if alpha >= beta:
+        #            break
+        #    return beta, best_move
+        #else:
+        #    v_max = MINVALUE
+        #    for move in legal_moves:
+        #        board.push(move)
+        #        temp_max, _ = self.alpha_beta_search(board, depth+1, alpha, beta, not maximizing_player)
 
-                if temp_max > v_max:
-                    v_max = temp_max
-                    best_move = move
+        #        if temp_max > v_max:
+        #            v_max = temp_max
+        #            best_move = move
 
-                alpha = max(alpha, temp_max)
-                board.pop()
-                if alpha >= beta:
-                    break
-            return alpha, best_move
+        #        alpha = max(alpha, temp_max)
+        #        board.pop()
+        #        if alpha >= beta:
+        #            break
+        #    return alpha, best_move
 
-    def eval_func(self, board):
+    def eval_func(self, board, color):
         # val = self.cache.get(board)
         # if val is not None:
         #     return val
@@ -257,8 +274,8 @@ class AlphaBetaSearch:
             v += king_end_game[white_king]
             v -= king_end_game_black[black_king]
         else:
-            v -= king_middle_game[white_king]
-            v += king_middle_game_black[black_king]
+            v += king_middle_game[white_king]
+            v -= king_middle_game_black[black_king]
 
 
         # bak = board.turn
@@ -270,7 +287,8 @@ class AlphaBetaSearch:
         #
         # board.turn = bak
 
-        #v += eval_moves
+        v *= color
+
         return v
 
 
