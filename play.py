@@ -4,6 +4,7 @@ import chess
 from engine import AlphaBetaSearch
 import sys
 import time
+import chess.polyglot
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
@@ -21,6 +22,9 @@ def main():
 
     stack = []
     board = chess.Board()
+
+    opening_book = chess.polyglot.MemoryMappedReader("../Formula14.bin")
+
     while True:
         if stack:
             smove = stack.pop()
@@ -54,6 +58,7 @@ def main():
                             board.push(chess.Move.from_uci(move))
 
         elif smove.startswith('go'):
+
             #  default options
             movetime = -1
             depth = 7
@@ -72,6 +77,12 @@ def main():
                     i += 1
                     movetime = int(params[i])
                 i+=1
+
+            book_move = opening_book.get(board, None)
+            if book_move is not None:
+                eprint("Found opening book move {} with value {}".format(book_move.move().uci(), book_move.weight))
+                print('bestmove ' + book_move.move().uci())
+                continue
 
             eprint("Starting AlphaBetaSearch with depth {}".format(depth))
 

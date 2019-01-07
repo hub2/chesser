@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import chess
+import chess.polyglot
 import time
 
 piece_types = [chess.PAWN, chess.KNIGHT, chess.BISHOP, chess.ROOK, chess.QUEEN, chess.KING]
@@ -17,6 +18,9 @@ attack_square_val = {chess.PAWN:1,
              chess.ROOK: 2,
              chess.QUEEN: 2,
              chess.KING: 0}
+
+MINVALUE = -1000000
+MAXVALUE = 1000000
 
 class LRUCache:
     cache = {}
@@ -48,7 +52,9 @@ class AlphaBetaSearch:
 
     def minimax(self, board, depth, is_white):
         self.nodes = 0
-        val, move = self.alpha_beta_search(board, depth, -float('inf'), float('inf'), is_white)
+        self.pieces = board.pieces
+        self.attacks = board.attacks
+        val, move = self.alpha_beta_search(board, depth, MINVALUE, MAXVALUE, is_white)
         return val/100.0, move
 
     def alpha_beta_search(self, board, depth, alpha, beta, maximizing_player):
@@ -59,9 +65,9 @@ class AlphaBetaSearch:
         if board.is_game_over():
             if board.is_checkmate():
                 if board.result == '1-0':
-                    return float('inf'), None
+                    return MAXVALUE, None
                 if board.result == '0-1':
-                    return -float('inf'), None
+                    return MINVALUE, None
 
             return self.eval_func(board), None
 
@@ -71,7 +77,7 @@ class AlphaBetaSearch:
         best_move = None
         # opponent's node
         if not maximizing_player: #not board.turn == side_to_move:
-            v_min = float('inf')
+            v_min = MAXVALUE
             for move in legal_moves:
                 board.push(move)
                 temp_min, _ = self.alpha_beta_search(board, depth-1, alpha, beta, not maximizing_player)
@@ -86,7 +92,7 @@ class AlphaBetaSearch:
                     break
             return beta, best_move
         else:
-            v_max = -float('inf')
+            v_max = MINVALUE
             for move in legal_moves:
                 board.push(move)
                 temp_max, _ = self.alpha_beta_search(board, depth-1, alpha, beta, not maximizing_player)
@@ -109,19 +115,28 @@ class AlphaBetaSearch:
         v = 0
         mobility = 0
         #eval_moves = 0
-
         for piece_type in piece_types:
-            v += len(board.pieces(piece_type, chess.WHITE)) * piece_val[piece_type]
-            for square in board.pieces(piece_type, chess.WHITE):
-                mobility += len(board.attacks(square))
+            pieces_set = self.pieces(piece_type, chess.WHITE)
+            pieces_count = 0
+            for square in pieces_set:
+                mobility += self.attacks(square).__len__()
+                pieces_count += 1
+
+            v += pieces_count * piece_val[piece_type]
             #    v += piece_val[piece_type]
 
         for piece_type in piece_types:
-            v -= len(board.pieces(piece_type, chess.BLACK)) * piece_val[piece_type]
-            for square in board.pieces(piece_type, chess.BLACK):
-                mobility -= len(board.attacks(square))
+            pieces_set = self.pieces(piece_type, chess.BLACK)
+            pieces_count = 0
+            for square in pieces_set:
+                mobility -= self.attacks(square).__len__()
+                pieces_count += 1
+
+            v -= pieces_count * piece_val[piece_type]
 
             #    v -= piece_val[piece_type]
+
+        v += mobility
 
         # bak = board.turn
         #
@@ -132,7 +147,6 @@ class AlphaBetaSearch:
         #
         # board.turn = bak
 
-        v += mobility
         #v += eval_moves
         return v
 
