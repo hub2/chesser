@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env pypy3
 
 import chess
 import chess.polyglot
@@ -110,15 +110,16 @@ class TTable:
 
     def get(self, board):
         h = chess.polyglot.zobrist_hash(board)
-        return self.cache.get(bb, None)
+        return self.cache.get(h, None)
 
 
-
+color_multiplier = [-1, 1]
 
 class AlphaBetaSearch:
     nodes = 0
     def __init__(self):
         self.transposition_table = TTable()
+        self.last_pv = None
 
     def minimax(self, board, max_depth, is_white):
         self.max_depth = max_depth
@@ -133,13 +134,13 @@ class AlphaBetaSearch:
             self.is_endgame = False
 
         val, move, tpv = self.alpha_beta_search(board, 0, MINVALUE, MAXVALUE, is_white)
+        self.last_pv = tpv[::-1]
         print(" ".join([x.uci() for x in tpv[::-1]]))
-
 
         return val/100.0, move
 
     def alpha_beta_search(self, board, depth, alpha, beta, maximizing_player):
-        color = [-1, 1][board.turn]
+        color = color_multiplier[board.turn]
 
         legal_moves = list(board.legal_moves)
         self.nodes += 1
@@ -292,13 +293,12 @@ class AlphaBetaSearch:
         return v
 
 
-if __name__ == '__main__':
-    board = chess.Board()
+board = chess.Board()
 
-    ab = AlphaBetaSearch()
-    for depth in range(1, 9):
-        s = time.time()
-        val, move = ab.minimax(board, depth, board.turn)
-        e = time.time()
-        delta = e-s
-        print(val, move, ab.nodes, delta, ab.nodes/(delta))
+ab = AlphaBetaSearch()
+for depth in range(1, 9):
+    s = time.time()
+    val, move = ab.minimax(board, depth, board.turn)
+    e = time.time()
+    delta = e-s
+    print(val, move, ab.nodes, delta, ab.nodes/(delta))

@@ -2,3 +2,4 @@ lichess-bot/
 *.pyc
 .idea/
 Formula14.bin
+build/
