@@ -4,6 +4,7 @@ import chess
 import chess.polyglot
 import time
 import sys
+from heapq import heappush, heappop
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
@@ -355,6 +356,60 @@ class AlphaBetaSearch:
         v *= color
 
         return v
+
+    def quiescent(self, board, alpha, beta, depth):
+        isCheck = board.is_check()
+        if not isCheck:
+            v = self.eval_func(board, color_multiplier[board.turn])
+            if v >= beta:
+                return v, None, []
+            if v > alpha:
+                alpha = v
+
+        heap = []
+
+        if isCheck:
+            isMoveOnCheck = False
+            for move in board.legal_moves:
+                isMoveOnCheck = True
+                heap.append((0, move))
+            if not isMoveOnCheck:
+                return -MAXVALUE, None, []
+        else:
+            for move in board.legal_moves:
+                if move.is_capture():
+                    heappush(heap, (-, move))
+
+
+    def getCaptureValue(self, board, move):
+        tsq = move.to_square
+        fsq = move.from_square
+
+        our_val = piece_val[fsq]
+        their_val = piece_val[tsq]
+
+        if their_val > our_val:
+            return their_val - our_val
+
+        board.push(move)
+        attackers = board.attackers(not board.turn,tsq)
+        while attackers.count() > 0:
+            attackers_sorted = sorted([(board.piece_at(sq), sq) for sq in attackers], key=lambda piece: piece_val[piece[0].piece_type])
+            lowest_val_attacker_sq = attackers_sorted[0][1]
+
+            candidate_move = board.Move(lowest_val_attacker_sq, tsq)
+            board.push(candidate_move)
+            # TODO:
+            board.pop()
+
+            attackers = board.attackers(not board.turn,tsq)
+        board.pop()
+
+
+
+
+
+
 
 if __name__ == '__main__':
     board = chess.Board()
