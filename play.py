@@ -86,16 +86,9 @@ def main():
 
             eprint("Starting AlphaBetaSearch with depth {}".format(depth))
 
-            s = time.time()
-
-            val, move = ap.minimax(board, depth, board.turn)
-
-            e = time.time()
-            usedtime = (e-s)*1000
-
-            print('info depth {} score {} time {} nodes {}'.format(depth, val, int(usedtime), ap.nodes))
-            eprint('info depth {} score {} time {} nodes {}'.format(depth, val, int(usedtime), ap.nodes))
+            val, move = ap.search(board, depth)
             print('bestmove ' + move.uci())
+            eprint('bestmove ' + move.uci())
 
         elif smove.startswith('time'):
             our_time = int(smove.split()[1])

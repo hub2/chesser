@@ -3,9 +3,27 @@
 import chess
 import chess.polyglot
 import time
+import sys
+
+def eprint(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
 
 piece_types_no_king = [chess.PAWN, chess.KNIGHT, chess.BISHOP, chess.ROOK, chess.QUEEN]
 piece_types = piece_types_no_king + [chess.KING]
+
+piece_attack_units = {chess.KNIGHT: 2, chess.BISHOP: 2, chess.QUEEN: 5, chess.ROOK: 3, chess.PAWN: 1, chess.KING:0}
+king_safety = [
+    0,  0,   1,   2,   3,   5,   7,   9,  12,  15,
+  18,  22,  26,  30,  35,  39,  44,  50,  56,  62,
+  68,  75,  82,  85,  89,  97, 105, 113, 122, 131,
+ 140, 150, 169, 180, 191, 202, 213, 225, 237, 248,
+ 260, 272, 283, 295, 307, 319, 330, 342, 354, 366,
+ 377, 389, 401, 412, 424, 436, 448, 459, 471, 483,
+ 494, 500, 500, 500, 500, 500, 500, 500, 500, 500,
+ 500, 500, 500, 500, 500, 500, 500, 500, 500, 500,
+ 500, 500, 500, 500, 500, 500, 500, 500, 500, 500,
+ 500, 500, 500, 500, 500, 500, 500, 500, 500, 500
+]
 
 pawns = [ 0,  0,  0,  0,  0,  0,  0,  0,
         50, 50, 50, 50, 50, 50, 50, 50,
@@ -38,7 +56,7 @@ bishops = [-20,-10,-10,-10,-10,-10,-10,-20,
             -10,  5,  0,  0,  0,  0,  5,-10,
             -20,-10,-10,-10,-10,-10,-10,-20,]
 
-bishops_black = knights[::-1]
+bishops_black = bishops[::-1]
 
 rooks = [  0,  0,  0,  0,  0,  0,  0,  0,
           5, 10, 10, 10, 10, 10, 10,  5,
@@ -103,10 +121,12 @@ MINVALUE = -1000000
 MAXVALUE = 1000000
 
 class TTable:
-    cache = {}
-    def put(self, board, val):
-        h = chess.polyglot.zobrist_hash(board)
+    def __init__(self):
+        self.cache = {}
 
+    def put(self, board, val, depth, move, pv, FLAG):
+        h = chess.polyglot.zobrist_hash(board)
+        self.cache[h] = (val, depth, move, pv, FLAG)
 
     def get(self, board):
         h = chess.polyglot.zobrist_hash(board)
@@ -115,14 +135,28 @@ class TTable:
 
 color_multiplier = [-1, 1]
 
+EXACT = 1
+LOWERBOUND = 2
+UPPERBOUND = 2
+
 class AlphaBetaSearch:
     nodes = 0
     def __init__(self):
-        self.transposition_table = TTable()
         self.last_pv = None
 
-    def minimax(self, board, max_depth, is_white):
-        self.max_depth = max_depth
+    def search(self, board, depth):
+        self.transposition_table = TTable()
+        for i in range(1, depth+1):
+            s = time.time()
+            val, move = self.minimax(board, i, board.turn)
+            e = time.time()
+            usedtime = (e-s)*1000
+
+            print('info depth {} score {} time {} nodes {}'.format(i, val, int(usedtime), self.nodes))
+            eprint('info depth {} score {} time {} nodes {}'.format(i, val, int(usedtime), self.nodes))
+        return val, move
+
+    def minimax(self, board, depth, is_white):
         self.nodes = 0
         self.pieces = board.pieces
         self.attacks = board.attacks
@@ -133,41 +167,45 @@ class AlphaBetaSearch:
         else:
             self.is_endgame = False
 
-        val, move, tpv = self.alpha_beta_search(board, 0, MINVALUE, MAXVALUE, is_white)
+        val, move, tpv = self.alpha_beta_search(board, depth, MINVALUE, MAXVALUE, is_white)
         self.last_pv = tpv[::-1]
-        print(" ".join([x.uci() for x in tpv[::-1]]))
+        eprint(" ".join([x.uci() for x in tpv[::-1]]))
 
-        return val/100.0, move
+        color = color_multiplier[board.turn]
+
+        return color * val/100.0, move
 
     def alpha_beta_search(self, board, depth, alpha, beta, maximizing_player):
+        alpha_orig = alpha
+        probe = self.transposition_table.get(board)
+        if probe is not None:
+            if probe[1] >= depth:
+                if probe[4] == EXACT:
+                    return probe[0], probe[2], probe[3]
+                elif probe[4] == LOWERBOUND:
+                    alpha = max(alpha, probe[0])
+                elif probe[4] == UPPERBOUND:
+                    beta = min(beta, probe[0])
+            if alpha >= beta:
+                return probe[0], probe[2], probe[3]
+
         color = color_multiplier[board.turn]
 
         legal_moves = list(board.legal_moves)
         self.nodes += 1
 
-        if depth >= self.max_depth or len(legal_moves) == 0:
-            return self.eval_func(board, color), None, []
-        if board.is_game_over():
-            if board.is_checkmate():
-                if board.result == '1-0':
-                    return MAXVALUE, None
-                if board.result == '0-1':
-                    return MINVALUE, None
-
-            return self.eval_func(board, color), None, []
+        if depth == 0 or len(legal_moves) == 0:
+            val = self.eval_func(board, color)
+            return val, None, []
 
         legal_moves = sorted(legal_moves, key=self.is_capture, reverse=True)
-        #if depth > 6:
-        #    legal_moves = legal_moves[:2]
-        #if depth > 5:
-        #    legal_moves = legal_moves[:5]
 
         best_move = None
 
         v_max = MINVALUE
         for move in legal_moves:
             board.push(move)
-            v, _, ttpv = self.alpha_beta_search(board, depth+1, -beta, -alpha, not maximizing_player)
+            v, _, ttpv = self.alpha_beta_search(board, depth-1, -beta, -alpha, not maximizing_player)
             v = -v
             v = max(alpha, v)
             alpha = max(alpha, v)
@@ -181,6 +219,13 @@ class AlphaBetaSearch:
             if alpha >= beta:
                 break
 
+        flag = EXACT
+        if v_max <= alpha_orig:
+            flag = UPPERBOUND
+        elif v_max >= beta:
+            flag = LOWERBOUND
+
+        self.transposition_table.put(board, v_max, depth, best_move, tpv, flag)
         return v_max, best_move, tpv
 
 
@@ -221,6 +266,12 @@ class AlphaBetaSearch:
         # if val is not None:
         #     return val
 
+        if board.is_game_over():
+            if board.is_checkmate():
+                if board.result == '1-0':
+                    return MAXVALUE * color
+                if board.result == '0-1':
+                    return MINVALUE * color
         v = 0
         #eval_moves = 0
         for piece_type in piece_types_no_king:
@@ -278,6 +329,19 @@ class AlphaBetaSearch:
             v += king_middle_game[white_king]
             v -= king_middle_game_black[black_king]
 
+        # WHITE SAFETY
+        attk_units = 0
+        for neighbouring_square in board.attacks(white_king):
+            for attacked_square in board.attackers(chess.BLACK, neighbouring_square):
+                attk_units += piece_attack_units[board.piece_type_at(attacked_square)]
+        v -= king_safety[attk_units]
+
+        # BLACK SAFETY
+        attk_units = 0
+        for neighbouring_square in board.attacks(black_king):
+            for attacked_square in board.attackers(chess.WHITE, neighbouring_square):
+                attk_units += piece_attack_units[board.piece_type_at(attacked_square)]
+        v += king_safety[attk_units]
 
         # bak = board.turn
         #
@@ -292,13 +356,9 @@ class AlphaBetaSearch:
 
         return v
 
+if __name__ == '__main__':
+    board = chess.Board()
 
-board = chess.Board()
+    ab = AlphaBetaSearch()
+    ab.search(board, 8)
 
-ab = AlphaBetaSearch()
-for depth in range(1, 9):
-    s = time.time()
-    val, move = ab.minimax(board, depth, board.turn)
-    e = time.time()
-    delta = e-s
-    print(val, move, ab.nodes, delta, ab.nodes/(delta))
