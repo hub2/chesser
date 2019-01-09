@@ -1,10 +1,10 @@
 #!/usr/bin/env pypy3
 from __future__ import print_function
 import chess
+import chess.polyglot
 from engine import AlphaBetaSearch
 import sys
 import time
-import chess.polyglot
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
