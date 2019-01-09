@@ -6,8 +6,10 @@ import time
 import sys
 from heapq import heappush, heappop
 
+
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
+
 
 piece_types_no_king = [chess.PAWN, chess.KNIGHT, chess.BISHOP, chess.ROOK, chess.QUEEN]
 piece_types = piece_types_no_king + [chess.KING]
@@ -144,6 +146,20 @@ class AlphaBetaSearch:
     nodes = 0
     def __init__(self):
         self.last_pv = None
+        self.pieces_mask = board.pieces_mask
+        #self.attacks = board.attacks
+        self.is_capture = board.is_capture
+        self.scan_forward = chess.scan_forward
+        self.attacks_mask = board.attacks_mask
+        self.attackers_mask = board.attackers_mask
+        self.piece_type_at = board.piece_type_at
+        self.WHITE = chess.WHITE
+        self.BLACK = chess.BLACK
+        self.PAWN = chess.PAWN
+        self.KNIGHT = chess.KNIGHT
+        self.BISHOP = chess.BISHOP
+        self.QUEEN = chess.QUEEN
+        self.KING = chess.KING
 
     def search(self, board, depth):
         self.transposition_table = TTable()
@@ -157,11 +173,17 @@ class AlphaBetaSearch:
             eprint('info depth {} score {} time {} nodes {}'.format(i, val, int(usedtime), self.nodes))
         return val, move
 
+    def get_pieces(self, piece_type, color):
+        return self.scan_forward(self.pieces_mask(piece_type, color))
+
+    def get_attacks(self, square):
+        return self.scan_forward(self.attacks_mask(square))
+
+    def get_attackers(self, color, square):
+        return self.scan_forward(self.attackers_mask(color, square))
+
     def minimax(self, board, depth, is_white):
         self.nodes = 0
-        self.pieces = board.pieces
-        self.attacks = board.attacks
-        self.is_capture = board.is_capture
 
         if len(board.pieces(chess.QUEEN, chess.BLACK)) + len(board.pieces(chess.QUEEN, chess.WHITE)) == 0:
             self.is_endgame = True
@@ -192,7 +214,7 @@ class AlphaBetaSearch:
 
         color = color_multiplier[board.turn]
 
-        legal_moves = list(board.legal_moves)
+        legal_moves = board.generate_legal_moves()
         self.nodes += 1
 
         if depth == 0 or len(legal_moves) == 0:
@@ -267,60 +289,67 @@ class AlphaBetaSearch:
         # if val is not None:
         #     return val
 
-        if board.is_game_over():
-            if board.is_checkmate():
-                if board.result == '1-0':
-                    return MAXVALUE * color
-                if board.result == '0-1':
-                    return MINVALUE * color
+        if board.is_checkmate():
+            if board.result == '1-0':
+                return MAXVALUE * color
+            if board.result == '0-1':
+                return MINVALUE * color
         v = 0
         #eval_moves = 0
-        for piece_type in piece_types_no_king:
-            pieces_set = self.pieces(piece_type, chess.WHITE)
-            pieces_count = 0
-            for square in pieces_set:
-                v += self.attacks(square).__len__()
-                pieces_count += 1
-
-            v += pieces_count * piece_val[piece_type]
-            #    v += piece_val[piece_type]
-
-        for piece_type in piece_types_no_king:
-            pieces_set = self.pieces(piece_type, chess.BLACK)
-            pieces_count = 0
-            for square in pieces_set:
-                v -= self.attacks(square).__len__()
-                pieces_count += 1
-            v -= pieces_count * piece_val[piece_type]
+        # for piece_type in piece_types_no_king:
+        #     pieces_set = self.pieces(piece_type, chess.WHITE)
+        #     pieces_count = 0
+        #     for square in pieces_set:
+        #         v += self.attacks(square).__len__()
+        #         pieces_count += 1
+        #
+        #     v += pieces_count * piece_val[piece_type]
+        #     #    v += piece_val[piece_type]
+        #
+        # for piece_type in piece_types_no_king:
+        #     pieces_set = self.pieces(piece_type, chess.BLACK)
+        #     pieces_count = 0
+        #     for square in pieces_set:
+        #         v -= self.attacks(square).__len__()
+        #         pieces_count += 1
+        #     v -= pieces_count * piece_val[piece_type]
 
             #    v -= piece_val[piece_type]
 
-        for bishop in board.pieces(chess.BISHOP, chess.WHITE):
+        for bishop in self.get_pieces(self.BISHOP, self.WHITE):
             v += bishops[bishop]
+            v += piece_val[self.BISHOP]
 
-        for bishop in board.pieces(chess.BISHOP, chess.BLACK):
+        for bishop in self.get_pieces(self.BISHOP, self.BLACK):
             v -= bishops_black[bishop]
+            v -= piece_val[self.BISHOP]
 
-        for queen in board.pieces(chess.QUEEN, chess.WHITE):
+        for queen in self.get_pieces(self.QUEEN, self.WHITE):
             v += queens[queen]
+            v += piece_val[self.QUEEN]
 
-        for queen in board.pieces(chess.QUEEN, chess.BLACK):
+        for queen in self.get_pieces(self.QUEEN, self.BLACK):
             v -= queens_black[queen]
+            v -= piece_val[self.QUEEN]
 
-        for knight in board.pieces(chess.KNIGHT, chess.WHITE):
+        for knight in self.get_pieces(self.KNIGHT, self.WHITE):
             v += knights[knight]
+            v += piece_val[self.KNIGHT]
 
-        for knight in board.pieces(chess.KNIGHT, chess.BLACK):
+        for knight in self.get_pieces(self.KNIGHT, self.BLACK):
             v -= knights_black[knight]
+            v -= piece_val[self.KNIGHT]
 
-        for pawn in board.pieces(chess.PAWN, chess.WHITE):
+        for pawn in self.get_pieces(self.PAWN, self.WHITE):
             v += pawns[pawn]
+            v += piece_val[self.PAWN]
 
-        for pawn in board.pieces(chess.PAWN, chess.BLACK):
+        for pawn in self.get_pieces(self.PAWN, self.BLACK):
             v -= pawns_black[pawn]
+            v -= piece_val[self.PAWN]
 
-        white_king = board.king(chess.WHITE)
-        black_king = board.king(chess.BLACK)
+        white_king = board.king(self.WHITE)
+        black_king = board.king(self.BLACK)
 
         # KING
         if self.is_endgame:
@@ -332,16 +361,16 @@ class AlphaBetaSearch:
 
         # WHITE SAFETY
         attk_units = 0
-        for neighbouring_square in board.attacks(white_king):
-            for attacked_square in board.attackers(chess.BLACK, neighbouring_square):
-                attk_units += piece_attack_units[board.piece_type_at(attacked_square)]
+        for neighbouring_square in self.get_attacks(white_king):
+            for attacked_square in self.get_attackers(chess.BLACK, neighbouring_square):
+                attk_units += piece_attack_units[self.piece_type_at(attacked_square)]
         v -= king_safety[attk_units]
 
         # BLACK SAFETY
         attk_units = 0
-        for neighbouring_square in board.attacks(black_king):
-            for attacked_square in board.attackers(chess.WHITE, neighbouring_square):
-                attk_units += piece_attack_units[board.piece_type_at(attacked_square)]
+        for neighbouring_square in self.get_attacks(black_king):
+            for attacked_square in self.get_attackers(chess.WHITE, neighbouring_square):
+                attk_units += piece_attack_units[self.piece_type_at(attacked_square)]
         v += king_safety[attk_units]
 
         # bak = board.turn
@@ -378,7 +407,7 @@ class AlphaBetaSearch:
         else:
             for move in board.legal_moves:
                 if move.is_capture():
-                    heappush(heap, (-, move))
+                    heappush(heap, (-1, move))
 
 
     def getCaptureValue(self, board, move):
@@ -415,5 +444,5 @@ if __name__ == '__main__':
     board = chess.Board()
 
     ab = AlphaBetaSearch()
-    ab.search(board, 8)
+    ab.search(board, 7)
 
