@@ -5,9 +5,9 @@ Simple alpha beta search python engine
 * Minimal UCI implementation
 * Estimated 1400 ELO
 * 7ply search
+* Transition tables
 
 #### TODO
-* Transition tables
 * Change negamax to pvs
 * Time control managment
 * Syzygy endgame tables
