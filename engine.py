@@ -153,6 +153,7 @@ class AlphaBetaSearch:
         self.BISHOP = chess.BISHOP
         self.QUEEN = chess.QUEEN
         self.KING = chess.KING
+        self.ROOK = chess.ROOK
 
     def search(self, board, depth):
         self.pieces_mask = board.pieces_mask
@@ -325,7 +326,6 @@ class AlphaBetaSearch:
             v -= bishops_black[bishop]
             v -= piece_val[self.BISHOP]
 
-
         for queen in self.get_pieces(self.QUEEN, self.WHITE):
             v += queens[queen]
             v += piece_val[self.QUEEN]
@@ -333,7 +333,6 @@ class AlphaBetaSearch:
         for queen in self.get_pieces(self.QUEEN, self.BLACK):
             v -= queens_black[queen]
             v -= piece_val[self.QUEEN]
-
 
         for knight in self.get_pieces(self.KNIGHT, self.WHITE):
             v += knights[knight]
@@ -343,6 +342,13 @@ class AlphaBetaSearch:
             v -= knights_black[knight]
             v -= piece_val[self.KNIGHT]
 
+        for rook in self.get_pieces(self.ROOK, self.WHITE):
+            v += rooks[rook]
+            v += piece_val[self.ROOK]
+
+        for rook in self.get_pieces(self.ROOK, self.BLACK):
+            v -= rooks_black[rook]
+            v -= piece_val[self.ROOK]
 
         for pawn in self.get_pieces(self.PAWN, self.WHITE):
             v += pawns[pawn]
