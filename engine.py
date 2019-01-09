@@ -110,7 +110,7 @@ piece_val = {chess.PAWN:100,
              chess.KNIGHT: 320,
              chess.BISHOP: 330,
              chess.ROOK: 500,
-             chess.QUEEN: 900,
+             chess.QUEEN: 935,
              chess.KING: 0}
 
 attack_square_val = {chess.PAWN:1,
@@ -126,6 +126,7 @@ MAXVALUE = 1000000
 class TTable:
     def __init__(self):
         self.cache = {}
+        self.hash_move = [None] * 240
 
     def put(self, board, val, depth, move, pv, FLAG):
         h = chess.polyglot.zobrist_hash(board)
@@ -164,11 +165,13 @@ class AlphaBetaSearch:
         self.attackers_mask = board.attackers_mask
         self.piece_type_at = board.piece_type_at
         self.transposition_table = TTable()
+        self.max_depth = depth
         for i in range(1, depth+1):
             s = time.time()
             val, move = self.minimax(board, i, board.turn)
             e = time.time()
             usedtime = (e-s)*1000
+            #print(self.transposition_table.hash_move)
 
             print('info depth {} score {} time {} nodes {}'.format(i, val, int(usedtime), self.nodes))
             eprint('info depth {} score {} time {} nodes {}'.format(i, val, int(usedtime), self.nodes))
@@ -194,6 +197,8 @@ class AlphaBetaSearch:
         val, move, tpv = self.alpha_beta_search(board, depth, MINVALUE, MAXVALUE)
         self.last_pv = tpv[::-1]
         eprint(" ".join([x.uci() for x in tpv[::-1]]))
+        for idx, pv in enumerate(self.last_pv):
+            self.transposition_table.hash_move[board.fullmove_number + (not board.turn) + idx] = pv
 
         color = color_multiplier[board.turn]
         return color*val/100.0, move
@@ -201,6 +206,7 @@ class AlphaBetaSearch:
     def alpha_beta_search(self, board, depth, alpha, beta):
         alpha_orig = alpha
         probe = self.transposition_table.get(board)
+        self.nodes += 1
         if probe is not None:
             if probe[1] >= depth:
                 board.push(probe[2])
@@ -220,13 +226,12 @@ class AlphaBetaSearch:
         color = color_multiplier[board.turn]
 
         legal_moves = board.generate_legal_moves()
-        self.nodes += 1
 
         if depth == 0 or len(legal_moves) == 0:
             val, move, pv = self.quiescent(board, alpha, beta, depth)
             return val, move, pv
 
-        legal_moves = sorted(legal_moves, key=self.is_capture, reverse=True)
+        legal_moves = sorted(legal_moves, key=lambda m: self.get_move_value(board, m, board.fullmove_number + (not board.turn)), reverse=True)
 
         best_move = None
         v_max = MINVALUE
@@ -288,6 +293,20 @@ class AlphaBetaSearch:
         #            break
         #    return alpha, best_move
 
+    def get_move_value(self, board, move, depth):
+        if self.transposition_table.hash_move[depth] == move:
+            return 10*MAXVALUE
+
+        if board.is_capture(move):
+            return self.get_capture_value(board, move)
+
+        prom = move.promotion
+        if prom:
+            return piece_val[prom] - piece_val[chess.PAWN] + 500
+
+        return 0
+
+
     def eval_func(self, board, color):
         # val = self.cache.get(board)
         # if val is not None:
@@ -317,6 +336,7 @@ class AlphaBetaSearch:
         #     v -= pieces_count * piece_val[piece_type]
 
             #    v -= piece_val[piece_type]
+
 
         for bishop in self.get_pieces(self.BISHOP, self.WHITE):
             v += bishops[bishop]
@@ -426,7 +446,7 @@ class AlphaBetaSearch:
 
         else:
             for move in board.generate_legal_captures():
-                heappush(heap, (-self.getCaptureValue(board, move), move))
+                heappush(heap, (-self.get_capture_value(board, move), move))
 
         while heap:
             self.nodes += 1
@@ -459,10 +479,9 @@ class AlphaBetaSearch:
 
     # TODO: optimize and get better undestanding of.
     # TODO: handle promotions
-    def getCaptureValue(self, board, move):
+    def get_capture_value(self, board, move):
         tsq = move.to_square
         fsq = move.from_square
-        fen = board.fen()
 
         our_val = piece_val[board.piece_type_at(fsq)]
         if board.is_en_passant(move):
@@ -491,7 +510,6 @@ class AlphaBetaSearch:
             swaplist.append(swaplist[-1] + lastval)
             lastval = piece_val[attackers_sorted[0][0].piece_type]
 
-
             attackers = self.get_attackers(board.turn, tsq)
             if len(attackers) == 0:
                 break
@@ -503,7 +521,6 @@ class AlphaBetaSearch:
 
             swaplist.append(swaplist[-1] + lastval)
             lastval = -piece_val[attackers_sorted[0][0].piece_type]
-
 
         for i in range(swap_count+1):
             board.pop()
@@ -524,7 +541,13 @@ class AlphaBetaSearch:
 
 
 if __name__ == '__main__':
-    board = chess.Board()#"2bqkbn1/2pppp2/np2N3/r3P1p1/p2N2B1/5Q2/PPPPKPP1/RNB2r2 w KQkq - 0 1")
+    #board = chess.Board()#"2bqkbn1/2pppp2/np2N3/r3P1p1/p2N2B1/5Q2/PPPPKPP1/RNB2r2 w KQkq - 0 1")
+    #board = chess.Board("r2q1rk1/3nbppp/p2pbn2/1p2p1P1/4P3/1NN1BP2/PPPQ3P/2KR1B1R b - - 0 12")
+    #board = chess.Board("r3nrk1/2qnbppp/p2p4/1p1Qp1P1/4P3/1N2BP2/PPP4P/2KR1B1R w - - 1 15")
+
+    fen = "r2qnrk1/3nbppp/p2p4/1p1Qp1P1/4P3/1N2BP2/PPP4P/2KR1B1R b - - 0 14"
+    board = chess.Board(fen)
+
     ab = AlphaBetaSearch()
-    ab.search(board, 7)
+    ab.search(board, 6)
 

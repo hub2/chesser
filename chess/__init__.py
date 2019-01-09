@@ -511,6 +511,9 @@ class Move:
         except AttributeError:
             return NotImplemented
 
+    def __lt__(self, other):
+        return True
+
     def __repr__(self):
         return "Move.from_uci('{}')".format(self.uci())
 
@@ -777,6 +780,25 @@ class BaseBoard:
 
         return BB_ALL
 
+    def pin_mask_square(self, color, square, square_to):
+        king = square_to
+
+        square_mask = BB_SQUARES[square]
+
+        for attacks, sliders in [(BB_FILE_ATTACKS, self.rooks | self.queens),
+                                 (BB_RANK_ATTACKS, self.rooks | self.queens),
+                                 (BB_DIAG_ATTACKS, self.bishops | self.queens)]:
+            rays = attacks[king][0]
+            if rays & square_mask:
+                snipers = rays & sliders & self.occupied_co[not color]
+                for sniper in scan_reversed(snipers):
+                    if BB_BETWEEN[sniper][king] & (self.occupied | square_mask) == square_mask:
+                        return BB_RAYS[king][sniper]
+
+                break
+
+        return BB_ALL
+
     def pin(self, color, square):
         """
         Detects an absolute pin (and its direction) of the given square to
@@ -811,6 +833,12 @@ class BaseBoard:
         Detects if the given square is pinned to the king of the given color.
         """
         return self.pin_mask(color, square) != BB_ALL
+
+    def is_pinned_square(self, color, square, square_to):
+        """
+        Detects if the given square is pinned to the king of the given color.
+        """
+        return self.pin_mask_square(color, square, square_to) != BB_ALL
 
     def _remove_piece_at(self, square):
         piece_type = self.piece_type_at(square)
@@ -1510,7 +1538,7 @@ class Board(BaseBoard):
         # The remaining moves are all pawn moves.
         pawns = self.pawns & self.occupied_co[self.turn] & from_mask
         if not pawns:
-            return
+            return []
 
         # Generate pawn captures.
         capturers = pawns
@@ -1563,10 +1591,10 @@ class Board(BaseBoard):
 
     def generate_pseudo_legal_ep(self, from_mask=BB_ALL, to_mask=BB_ALL):
         if not self.ep_square or not BB_SQUARES[self.ep_square] & to_mask:
-            return
+            return []
 
         if BB_SQUARES[self.ep_square] & self.occupied:
-            return
+            return []
 
         capturers = (
             self.pawns & self.occupied_co[self.turn] & from_mask &
@@ -3112,6 +3140,7 @@ class Board(BaseBoard):
                     BB_RAYS[move.from_square][move.to_square] & BB_SQUARES[king])
 
     def _generate_evasions(self, king, checkers, from_mask=BB_ALL, to_mask=BB_ALL):
+        out = []
         sliders = checkers & (self.bishops | self.rooks | self.queens)
 
         attacked = 0
@@ -3120,21 +3149,22 @@ class Board(BaseBoard):
 
         if BB_SQUARES[king] & from_mask:
             for to_square in scan_reversed(BB_KING_ATTACKS[king] & ~self.occupied_co[self.turn] & ~attacked & to_mask):
-                yield Move(king, to_square)
+                out.append(Move(king, to_square))
 
         checker = msb(checkers)
         if BB_SQUARES[checker] == checkers:
             # Capture or block a single checker.
             target = BB_BETWEEN[king][checker] | checkers
 
-            yield from self.generate_pseudo_legal_moves(~self.kings & from_mask, target & to_mask)
+            out += self.generate_pseudo_legal_moves(~self.kings & from_mask, target & to_mask)
 
             # Capture the checking pawn en passant (but avoid yielding
             # duplicate moves).
             if self.ep_square and not BB_SQUARES[self.ep_square] & target:
                 last_double = self.ep_square + (-8 if self.turn == WHITE else 8)
                 if last_double == checker:
-                    yield from self.generate_pseudo_legal_ep(from_mask, to_mask)
+                    out += self.generate_pseudo_legal_ep(from_mask, to_mask)
+        return out
 
     def generate_legal_moves(self, from_mask=BB_ALL, to_mask=BB_ALL):
         if self.is_variant_end():

@@ -3,21 +3,24 @@ Simple alpha beta search python engine
 
 ## What works
 * Minimal UCI implementation
-* Estimated 1200 ELO
+* Estimated 1400 ELO
 * 7ply search
 
 #### TODO
 * Transition tables
-* Change minimax to negascout
+* Change negamax to pvs
 * Time control managment
+* Syzygy endgame tables
 
 ## Evaluation
 * Mobility
 * Material
 * Piece Square Tables
 
+### Quiescence Search
+* Static Exchange Evaluation
+
 #### TODO
-* Change evaluation to relative
 * Lazy evaluation for pruning
-* Improve castling
 * Bad pawns (doubled, tripled)
+* Pins, skrews
